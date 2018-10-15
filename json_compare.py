@@ -37,6 +37,7 @@ class json_compare:
         self.app2 = []
         self.ans2 = []
         self.order2 = []
+        self.confidence_level = 0
 
     # Method to clean the received text
     def declean(self, sent):
@@ -93,12 +94,15 @@ class json_compare:
             data1 = document
             gen = data1.get('genericJSON')
             survey = gen.get('Survey')
+            total_count = 0
+            high_count = 0
             for item in survey:
                 self.Q_id2.append(item['Q_ID'])
                 self.inst2.append(item['Q_Instruction'])
                 self.que2.append(item['Q_Text'])
                 self.qty2.append(item['Q_Type'])
                 self.cl2.append(item['Confidence_Level'])
+
                 #app.append(item['selectedAppearance'])
                 Ans = item['Answers']
                 if len(Ans) > 0:
@@ -114,6 +118,12 @@ class json_compare:
                 prop = item['Q_Properties']
                 sort = prop['Answer_List_Sorting_Order']
                 self.order2.append(sort)
+                total_count += 1
+                if item['Confidence_Level'] == 'HIGH':
+                    high_count += 1
+            self.confidence_level = high_count/total_count
+            # print("The Confidence Level Accuracy is :", high_count/total_count)
+
 
         EditedDocs = db_schema.find(myquery_pred)
         for value, document in enumerate(EditedDocs, 1):
@@ -126,7 +136,10 @@ class json_compare:
                 self.que.append(item['Q_Text'])
                 self.qty.append(item['Q_Type'])
                 self.cl.append(item['Confidence_Level'])
-                #     app.append(item['selectedAppearance'])
+
+
+
+                #app.append(item['selectedAppearance'])
                 Ans = item['Answers']
                 if len(Ans) > 0:
                     ans_list = Ans['Answer_List']
@@ -142,9 +155,9 @@ class json_compare:
                 sort = prop['Answer_List_Sorting_Order']
                 self.order.append(sort)
 
-        self.df1_dict = {'QID': self.Q_id, 'QUESTION': self.que, 'INSTRUCTION': self.inst, 'ANSWERS': self.ans,'Q_TYPE': self.qty, 'CONFIDENCE_LEVEL': self.cl, 'ORDER': self.order}
+        self.df1_dict = {'QID': self.Q_id, 'QUESTION': self.que, 'INSTRUCTION': self.inst, 'ANSWERS': self.ans,'Q_TYPE': self.qty, 'CONFIDENCE_LEVEL': self.confidence_level, 'ORDER': self.order}
         self.dataFrame1 = pd.DataFrame(self.df1_dict)
-        self.df2_dict = {'QID': self.Q_id2, 'QUESTION': self.que2, 'INSTRUCTION': self.inst2, 'ANSWERS': self.ans2,'Q_TYPE': self.qty2, 'CONFIDENCE_LEVEL': self.cl2, 'ORDER': self.order2}
+        self.df2_dict = {'QID': self.Q_id2, 'QUESTION': self.que2, 'INSTRUCTION': self.inst2, 'ANSWERS': self.ans2,'Q_TYPE': self.qty2, 'CONFIDENCE_LEVEL': self.confidence_level, 'ORDER': self.order2}
         self.dataFrame2 = pd.DataFrame(self.df2_dict)
 
         # print(self.dataFrame1)
@@ -225,6 +238,7 @@ class json_compare:
         #     print(meas_acc)
         meas_acc[meas_acc == 0.0] = 1.0
         meas_acc[meas_acc == -1.0] = 0.0
+        #meas_acc = self.confidence_level
         acc_class = np.mean(meas_acc, axis=0)
         Correct_Q_count = meas_acc.sum(axis=1)
         Correct_Q_count[Correct_Q_count != num_cols] = 0
@@ -236,6 +250,7 @@ class json_compare:
             acc_dict[cols[j]] = format(acc_class[j], '.2f')
         accuracy = np.mean(meas_acc)
         return accuracy, acc_dict, dict_count, Correct_Q, Total_Q_count, act_df, match_df
+
 
     def int_conversion(self,s):
         try:
@@ -277,15 +292,17 @@ class json_compare:
 
         print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
         print("DOCUMENT BEING EVALUATED: ", base_json_name)
-        print('SEGEMENT ACCURACY : %.2f' % acc)
+        #print('SEGEMENT ACCURACY : %.2f' % acc)
         print('SEGMENT  :', class_acc)
+        print('Confidence Level :', self.confidence_level)
         print('Correct_Q_count : ', int(Correct_Q))
         print('Total_Q_count   : ', Total_Q_count)
         print('QUESTION ACCURACY : %.2f' % (Correct_Q / Total_Q_count))
         print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
 
         correct_question = int(Correct_Q)
-        data_to_excel = [{'Document Name':base_json_name, 'Segment Accuracy':acc, "Total Question count":Total_Q_count,"Correct_question_count":correct_question,"Question Accuracy":(Correct_Q / Total_Q_count)}]
+        #data_to_excel = [{'Document Name':base_json_name, 'Segment Accuracy':acc, "Total Question count":Total_Q_count,"Correct_question_count":correct_question,"Question Accuracy":(Correct_Q / Total_Q_count)}]
+        data_to_excel = [{'Document Name': base_json_name,  "Total Question count": Total_Q_count, "Confidence Level":self.confidence_level, "Correct_question_count": correct_question, "Question Accuracy": (Correct_Q / Total_Q_count)}]
         data_formatted = pd.DataFrame(data_to_excel)
 
         if index == 0:
